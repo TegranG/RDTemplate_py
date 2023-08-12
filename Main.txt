@@ -1,0 +1,582 @@
+#region VEXcode Generated Robot Configuration
+from vex import *
+import urandom
+
+# Brain should be defined by default
+brain=Brain()
+
+# Robot configuration code
+Leftbottom = Motor(Ports.PORT12, GearSetting.RATIO_18_1, False)
+Lefttop = Motor(Ports.PORT9, GearSetting.RATIO_18_1, True)
+Leftmiddle = Motor(Ports.PORT11, GearSetting.RATIO_18_1, False)
+Righttop = Motor(Ports.PORT13, GearSetting.RATIO_18_1, True)
+Rightmiddle = Motor(Ports.PORT15, GearSetting.RATIO_18_1, False)
+Rightbottom = Motor(Ports.PORT16, GearSetting.RATIO_18_1, False)
+Inertial1 = Inertial(Ports.PORT19)
+controller_1 = Controller(PRIMARY)
+limitSwitch = Limit(brain.three_wire_port.a)
+catapult = Motor(Ports.PORT10, GearSetting.RATIO_18_1, False)
+intake = Motor(Ports.PORT14, GearSetting.RATIO_18_1, False)
+gps = Gps(Ports.PORT8, 0.00, 0.00, MM, 180)
+
+
+# wait for rotation sensor to fully initialize
+wait(30, MSEC)
+
+
+def play_vexcode_sound(sound_name):
+    # Helper to make playing sounds from the V5 in VEXcode easier and
+    # keeps the code cleaner by making it clear what is happening.
+    print("VEXPlaySound:" + sound_name)
+    wait(5, MSEC)
+
+# add a small delay to make sure we don't print in the middle of the REPL header
+wait(200, MSEC)
+# clear the console to make sure we don't have the REPL in the console
+print("\033[2J")
+
+#endregion VEXcode Generated Robot Configuration
+# ------------------------------------------
+# 
+# 	Project:
+#	Author:
+#	Created:
+#	Configuration:
+# 
+# ------------------------------------------
+
+# Library imports
+from vex import *
+leftSide = MotorGroup(Leftbottom,Leftmiddle,Lefttop)
+rightSide = MotorGroup(Rightbottom,Rightmiddle,Righttop)
+
+
+# Define custom button class
+def Stop_():
+    Leftbottom.set_stopping(BRAKE)
+    Rightbottom.set_stopping(BRAKE)
+    Righttop.set_stopping(BRAKE)
+    Rightmiddle.set_stopping(BRAKE)
+    Lefttop.set_stopping(BRAKE)
+    Leftmiddle.set_stopping(BRAKE)
+    Leftbottom.stop()
+    Rightbottom.stop()
+    Righttop.stop()
+    Lefttop.stop()
+    Leftmiddle.stop()
+    Rightmiddle.stop()
+
+def Resetd():
+    Leftmiddle.set_position(0,DEGREES)
+    Leftbottom.set_position(0,DEGREES)
+    Rightbottom.set_position(0,DEGREES)
+    Righttop.set_position(0,DEGREES)
+    Lefttop.set_position(0,DEGREES)
+    Rightmiddle.set_position(0,DEGREES)
+def Stop():
+    Leftmiddle.set_stopping(COAST)
+    Rightmiddle.set_stopping(COAST)
+    Leftbottom.set_stopping(COAST)
+    Rightbottom.set_stopping(COAST)
+    Righttop.set_stopping(COAST)
+    Lefttop.set_stopping(COAST)
+    Leftbottom.stop()
+    Rightbottom.stop()
+    Righttop.stop()
+    Lefttop.stop()
+    Leftmiddle.stop()
+    Rightmiddle.stop()
+
+def turnControlLoop(angle_degrees):
+    # Constants for PID control
+    KP = 0.5
+    KI = 0.05
+    KD = 0.1
+
+    # Variables for PID control
+    last_error = 0
+    total_error = 0
+
+    # Calculate target angle
+    
+    target_angle = Inertial1.heading(DEGREES) + angle_degrees
+
+    # Normalize target angle to -180 to 180 degrees
+    if target_angle > 180:
+        target_angle -= 360
+    elif target_angle < -180:
+        target_angle += 360
+
+    # Loop until robot reaches target angle
+    while abs(Inertial1.heading(DEGREES) - target_angle) > 1:
+
+        # Calculate error
+        error = target_angle - Inertial1.heading(DEGREES)
+
+        # Calculate derivative of error
+        error_derivative = error - last_error
+
+        # Calculate integral of error
+        total_error += error
+
+        # Calculate motor power using PID control
+        motor_power = KP * error + KI * total_error + KD * error_derivative
+
+        # Set motor power
+        leftSide.spin(FORWARD)
+        rightSide.spin(REVERSE)
+        rightSide.set_velocity(motor_power,PERCENT)
+        leftSide.set_velocity(motor_power,PERCENT)
+        
+        # Store last error
+        last_error = error
+
+        # Wait for a short period of time
+        wait(.05,SECONDS)
+
+    # Stop motors when loop is finished
+    leftSide.stop()
+    rightSide.stop()
+
+    return
+def driveControlLoop(distance_inches): 
+
+    # Constants for PID control
+    KP = 0.43
+    KI = 0.05
+    KD = .00043
+
+    # Variables for PID control
+    last_error = 0
+    total_error = 0
+
+    # Calculate target position
+    target_position = distance_inches / (4 * math.pi) * 360
+
+    # Loop until robot reaches target position
+    while abs(leftSide.position(DEGREES) + rightSide.position(DEGREES)) / 2 < target_position:
+
+        # Calculate error
+        error_left = target_position - leftSide.position(DEGREES)
+        error_right = target_position - rightSide.position(DEGREES)
+
+        # Calculate derivative of error
+        error_derivative_left = error_left - last_error
+        error_derivative_right = error_right - last_error
+
+        # Calculate integral of error
+        total_error += error_left
+
+        # Calculate motor power using PID control
+        motor_power_left = KP * error_left + KI * total_error + KD * error_derivative_left
+        motor_power_right = KP * error_right + KI * total_error + KD * error_derivative_right
+
+        # Set motor power
+        leftSide.spin(FORWARD)
+        rightSide.spin(FORWARD)
+        rightSide.set_velocity(motor_power_left,PERCENT)
+        leftSide.set_velocity(motor_power_right,PERCENT)
+
+        # Store last error
+        last_error = error_left
+
+        # Wait for a short period of time
+        wait(.05,SECONDS)
+
+    # Stop motors when loop is finished
+    rightSide.stop()
+    leftSide.stop()
+
+    return 
+def odometry():
+    # Constants for odometry
+    WHEEL_RADIUS = 2.75  # inches
+    TICKS_PER_REV = 360 #DONT CHANGE THIS, this should be a constant
+    WHEELBASE_WIDTH = 5.25  # inches
+
+    # Variables for odometry
+    x = 0  # inches
+    y = 0  # inches
+    theta = 0  # radians
+
+    # Loop to continuously update position
+    while True:
+
+        # Get encoder values
+        left_ticks = Leftmiddle.position(DEGREES)
+        right_ticks = Rightmiddle.position(DEGREES)
+
+        # Calculate distance traveled by each wheel
+        left_distance = (left_ticks / TICKS_PER_REV) * (2 * math.pi * WHEEL_RADIUS)
+        right_distance = (right_ticks / TICKS_PER_REV) * (2 * math.pi * WHEEL_RADIUS)
+
+        # Calculate change in heading (in radians)
+        delta_theta = (right_distance - left_distance) / WHEELBASE_WIDTH
+
+        # Calculate average distance traveled
+        avg_distance = (left_distance + right_distance) / 2
+
+        # Update x, y, and theta values
+        x += avg_distance * math.cos(theta + (delta_theta / 2))
+        y += avg_distance * math.sin(theta + (delta_theta / 2))
+        theta += delta_theta
+
+        # Wait for a short period of time
+        wait(.05,SECONDS)
+
+    return (x, y)
+#drive to functions that work with the odometry will be implemented soon
+#this code might work
+def gpsGoTo(xcord,ycord): #ps dont use gps code, other methods are better
+    b = xcord - gps.x_position(MM)
+    c = ycord - gps.y_position(MM)
+    if b == 0 and c == 0:
+        pass
+    else:
+        a = math.sqrt(b**2 + c**2)
+        angle = math.asin((math.sin(90 / 180 * math.pi) * b) / a) / math.pi * 180
+        if c < 0:
+            angle = 180 - 180
+        IRightbottom(angle,.3)
+        IFWD(a,80,angle)
+    pass
+pass
+    
+def inertial():
+    (Inertial1.rotation(DEGREES))
+
+def IFWD(d,s,h):
+
+    Resetd()
+
+    while ((Lefttop.position(DEGREES) + Righttop.position(DEGREES)) / 2) < d:
+        Rightmiddle.spin(FORWARD)
+        Leftbottom.spin(FORWARD)
+        Lefttop.spin(FORWARD)
+        Rightbottom.spin(FORWARD)
+        Righttop.spin(FORWARD)
+        Leftmiddle.spin(FORWARD)
+
+        pwr = abs(h - Inertial1.rotation(DEGREES)) * 2
+        if pwr > 100:
+            pwr = 100
+
+        if Inertial1.rotation(DEGREES)>(.5+h):
+            Leftbottom.set_velocity(s,PERCENT)
+            Lefttop.set_velocity(s,PERCENT)
+            Rightbottom.set_velocity(s+pwr,PERCENT)
+            Righttop.set_velocity(s+pwr,PERCENT)
+            Rightmiddle.set_velocity(s+pwr,PERCENT)
+            Leftmiddle.set_velocity(s,PERCENT)
+        elif Inertial1.rotation(DEGREES)<(h-.5):
+            Leftbottom.set_velocity(s+pwr,PERCENT)
+            Lefttop.set_velocity(s+pwr,PERCENT)
+            Rightbottom.set_velocity(s,PERCENT)
+            Righttop.set_velocity(s,PERCENT)
+            Leftmiddle.set_velocity(s+pwr,PERCENT)
+            Rightmiddle.set_velocity(s,PERCENT)
+        else:
+            Leftmiddle.set_velocity(s,PERCENT)
+            Leftbottom.set_velocity(s,PERCENT)
+            Lefttop.set_velocity(s,PERCENT)
+            Rightbottom.set_velocity(s,PERCENT)
+            Righttop.set_velocity(s,PERCENT)
+            Rightmiddle.set_velocity(s,PERCENT)
+    Stop()
+
+def IREV(d,s,h):
+
+    Resetd()
+
+    while ((Lefttop.position(DEGREES) + Righttop.position(DEGREES)) / 2) > -d:
+
+        Leftbottom.spin(FORWARD)
+        Lefttop.spin(FORWARD)
+        Rightbottom.spin(FORWARD)
+        Righttop.spin(FORWARD)
+        Rightmiddle.spin(FORWARD)
+        Leftmiddle.spin(FORWARD)
+        pwr = abs(h -Inertial1.rotation(DEGREES)) * 2
+        if pwr > 100:
+            pwr = 100
+
+        if Inertial1.rotation(DEGREES)>(.5+h):
+            Leftmiddle.set_velocity(-s-pwr,PERCENT)
+            Leftbottom.set_velocity(-s-pwr,PERCENT)
+            Lefttop.set_velocity(-s-pwr,PERCENT)
+            Rightmiddle.set_velocity(-s,PERCENT)
+            Rightbottom.set_velocity(-s,PERCENT)
+            Righttop.set_velocity(-s,PERCENT)
+
+        elif Inertial1.rotation(DEGREES)<(h-.5):
+            Leftbottom.set_velocity(-s,PERCENT)
+            Lefttop.set_velocity(-s,PERCENT)
+            Leftmiddle.set_velocity(-s,PERCENT)
+            Rightmiddle.set_velocity(-s-pwr,PERCENT)
+            Rightbottom.set_velocity(-s-pwr,PERCENT)
+            Righttop.set_velocity(-s-pwr,PERCENT)
+
+        else:
+            Leftbottom.set_velocity(-s,PERCENT)
+            Lefttop.set_velocity(-s,PERCENT)
+            Rightbottom.set_velocity(-s,PERCENT)
+            Righttop.set_velocity(-s,PERCENT)
+            Rightmiddle.set_velocity(-s,PERCENT)
+            Leftmiddle.set_velocity(-s,PERCENT)
+    Stop_()
+
+def IRightbottom(h,s):
+
+    Resetd()
+
+    while Inertial1.rotation(DEGREES)<h-.5:
+
+        pwr = (abs(h - Inertial1.rotation(DEGREES)) * s) + 5
+        if pwr > 40:
+            pwr = 40
+        Leftmiddle.set_velocity(pwr,PERCENT)
+        Leftbottom.set_velocity(pwr,PERCENT)
+        Lefttop.set_velocity(pwr,PERCENT)
+        Rightmiddle.set_velocity(-pwr,PERCENT)
+        Rightbottom.set_velocity(-pwr,PERCENT)
+        Righttop.set_velocity(-pwr,PERCENT)
+        Leftbottom.spin(FORWARD)
+        Lefttop.spin(FORWARD)
+        Rightbottom.spin(FORWARD)
+        Righttop.spin(FORWARD)
+        Rightmiddle.spin(FORWARD)
+        Leftmiddle.spin(FORWARD)
+
+    Stop()
+    wait(.05,SECONDS)
+
+    while Inertial1.rotation(DEGREES)>h+.5:
+
+        pwr = (abs(h - Inertial1.rotation(DEGREES)) * s) + 5
+        if pwr > 40:
+            pwr = 40
+        Leftmiddle.set_velocity(-pwr,PERCENT)
+        Leftbottom.set_velocity(-pwr,PERCENT)
+        Lefttop.set_velocity(-pwr,PERCENT)
+        Rightbottom.set_velocity(pwr,PERCENT)
+        Rightmiddle.set_velocity(pwr,PERCENT)
+        Righttop.set_velocity(pwr,PERCENT)
+        Leftbottom.spin(FORWARD)
+        Leftmiddle.spin(FORWARD)
+        Lefttop.spin(FORWARD)
+        Rightbottom.spin(FORWARD)
+        Righttop.spin(FORWARD)
+        Rightmiddle.spin(FORWARD)
+
+    Stop()
+
+def ILeftbottom(h,s):
+
+    Resetd()
+
+    while Inertial1.rotation(DEGREES)>h+.5:
+
+        pwr = (abs(h - Inertial1.rotation(DEGREES)) * s) + 5
+        if pwr > 40:
+            pwr = 40
+        Leftmiddle.set_velocity(-pwr,PERCENT)
+        Leftbottom.set_velocity(-pwr,PERCENT)
+        Lefttop.set_velocity(-pwr,PERCENT)
+        Rightbottom.set_velocity(pwr,PERCENT)
+        Righttop.set_velocity(pwr,PERCENT)
+        Rightmiddle.set_velocity(pwr,PERCENT)
+        Leftbottom.spin(FORWARD)
+        Lefttop.spin(FORWARD)
+        Leftmiddle.spin(FORWARD)
+        Rightmiddle.spin(FORWARD)
+        Rightbottom.spin(FORWARD)
+        Righttop.spin(FORWARD)
+
+    Stop_()
+    wait(.05,SECONDS)
+
+    while Inertial1.rotation(DEGREES)<h-.5:
+
+        pwr = (abs(h - Inertial1.rotation(DEGREES)) * s) + 5
+        if pwr > 40:
+            pwr = 40
+
+        Leftmiddle.set_velocity(pwr,PERCENT)
+        Leftbottom.set_velocity(pwr,PERCENT)
+        Lefttop.set_velocity(pwr,PERCENT)
+        Rightbottom.set_velocity(-pwr,PERCENT)
+        Righttop.set_velocity(-pwr,PERCENT)
+        Rightmiddle.set_velocity(-pwr,PERCENT)
+        Leftmiddle.spin(FORWARD)
+        Rightmiddle.spin(FORWARD)
+        Leftbottom.spin(FORWARD)
+        Lefttop.spin(FORWARD)
+        Rightbottom.spin(FORWARD)
+        Righttop.spin(FORWARD)
+        
+    Stop_()
+def turnleft(a,v):
+    Leftbottom.set_velocity(v,PERCENT)
+    Leftmiddle.set_velocity(v,PERCENT)
+    Lefttop.set_velocity(v,PERCENT)
+    Righttop.set_velocity(v,PERCENT)
+    Rightmiddle.set_velocity(v,PERCENT)
+    Rightbottom.set_velocity(v,PERCENT)
+    Leftmiddle.spin_for(REVERSE,a,DEGREES,wait=False)
+    Leftmiddle.spin_for(REVERSE,a,DEGREES,wait=False)
+    Rightmiddle.spin_for(FORWARD,a,DEGREES,wait=False)
+    Leftbottom.spin_for(FORWARD,a,DEGREES,wait=False)
+    Lefttop.spin_for(REVERSE,a,DEGREES,wait=False)
+    Rightbottom.spin_for(FORWARD,a,DEGREES,wait=False)
+    Righttop.spin_for(FORWARD,a,DEGREES,wait=False)
+
+#baba boy
+def turnright(d,s):
+    Righttop.set_velocity(s,PERCENT)
+    Rightmiddle.set_velocity(s,PERCENT)
+    Rightbottom.set_velocity(s,PERCENT)
+    Lefttop.set_velocity(s,PERCENT)
+    Leftmiddle.set_velocity(s,PERCENT)
+    Leftbottom.set_velocity(s,PERCENT)
+    Righttop.spin_for(REVERSE,d,DEGREES,wait=False)
+    Rightmiddle.spin_for(REVERSE,d,DEGREES,wait=False)
+    Rightbottom.spin_for(REVERSE,d,DEGREES,wait=False)
+    Lefttop.spin_for(FORWARD,d,DEGREES,wait=False)
+    Leftmiddle.spin_for(FORWARD,d,DEGREES,wait=False)
+    Leftbottom.spin_for(FORWARD,d,DEGREES,wait=False)
+
+def drive(a,v,direction):
+    if direction == 'f':
+        print("f")
+        direction = FORWARD
+    elif direction == 'r':
+        direction = REVERSE
+    pass
+    Leftbottom.set_velocity(v,PERCENT)
+    Leftmiddle.set_velocity(v,PERCENT)
+    Lefttop.set_velocity(v,PERCENT)
+    Righttop.set_velocity(v,PERCENT)
+    Rightmiddle.set_velocity(v,PERCENT)
+    Rightbottom.set_velocity(v,PERCENT)
+    Leftmiddle.spin_for(direction,a,DEGREES,wait=False)
+    Leftmiddle.spin_for(direction,a,DEGREES,wait=False)
+    Rightmiddle.spin_for(direction,a,DEGREES,wait=False)
+    Leftbottom.spin_for(direction,a,DEGREES,wait=False)
+    Lefttop.spin_for(direction,a,DEGREES,wait=False)
+    Rightbottom.spin_for(direction,a,DEGREES,wait=False)
+    Righttop.spin_for(direction,a,DEGREES,wait=False)
+def drivefint(d,s,ind,ins):
+    Leftbottom.set_velocity(s,PERCENT)
+    Leftmiddle.set_velocity(s,PERCENT)
+    Lefttop.set_velocity(s,PERCENT)
+    Righttop.set_velocity(s,PERCENT)
+    Rightmiddle.set_velocity(s,PERCENT)
+    Rightbottom.set_velocity(s,PERCENT)
+    Leftmiddle.spin_for(FORWARD,d,DEGREES,wait=False)
+    Leftmiddle.spin_for(FORWARD,d,DEGREES,wait=False)
+    Rightmiddle.spin_for(FORWARD,d,DEGREES,wait=False)
+    Leftbottom.spin_for(FORWARD,d,DEGREES,wait=False)
+    Lefttop.spin_for(FORWARD,d,DEGREES,wait=False)
+    Rightbottom.spin_for(FORWARD,d,DEGREES,wait=False)
+    Righttop.spin_for(FORWARD,d,DEGREES,wait=False)
+    intake.spin_for(FORWARD,ind,DEGREES,wait=False)
+    intake.set_velocity(ins,PERCENT)
+
+pass
+
+pass
+def drivef(a,v):
+    Leftbottom.set_velocity(v,PERCENT)
+    Leftmiddle.set_velocity(v,PERCENT)
+    Lefttop.set_velocity(v,PERCENT)
+    Righttop.set_velocity(v,PERCENT)
+    Rightmiddle.set_velocity(v,PERCENT)
+    Rightbottom.set_velocity(v,PERCENT)
+    Leftmiddle.spin_for(FORWARD,a,DEGREES,wait=False)
+    Leftmiddle.spin_for(FORWARD,a,DEGREES,wait=False)
+    Rightmiddle.spin_for(FORWARD,a,DEGREES,wait=False)
+    Leftbottom.spin_for(FORWARD,a,DEGREES,wait=False)
+    Lefttop.spin_for(FORWARD,a,DEGREES,wait=False)
+    Rightbottom.spin_for(FORWARD,a,DEGREES,wait=False)
+    Righttop.spin_for(FORWARD,a,DEGREES,wait=False)
+def driveR(a,v):
+    Leftbottom.set_velocity(v,PERCENT)
+    Leftmiddle.set_velocity(v,PERCENT)
+    Lefttop.set_velocity(v,PERCENT)
+    Righttop.set_velocity(v,PERCENT)
+    Rightmiddle.set_velocity(v,PERCENT)
+    Rightbottom.set_velocity(v,PERCENT)
+    Leftmiddle.spin_for(REVERSE,a,DEGREES,wait=False)
+    Leftmiddle.spin_for(REVERSE,a,DEGREES,wait=False)
+    Rightmiddle.spin_for(REVERSE,a,DEGREES,wait=False)
+    Leftbottom.spin_for(REVERSE,a,DEGREES,wait=False)
+    Lefttop.spin_for(REVERSE,a,DEGREES,wait=False)
+    Rightbottom.spin_for(REVERSE,a,DEGREES,wait=False)
+    Righttop.spin_for(REVERSE,a,DEGREES,wait=False)
+def cataDown():
+    while True:
+        if limitSwitch.pressing():
+            catapult.stop(HOLD)
+            break
+        else: 
+            catapult.spin(REVERSE)
+def powerShot():
+    leftSide.set_velocity(100,PERCENT)
+    rightSide.set_velocity(100,PERCENT)
+    leftSide.spin_for(FORWARD,100,DEGREES,wait=False)
+    rightSide.spin_for(FORWARD,100,DEGREES,wait=False)
+def weakShot():
+    leftSide.set_velocity(100,PERCENT)
+    rightSide.set_velocity(100,PERCENT)
+    leftSide.spin_for(REVERSE,100,DEGREES,wait=False)
+    rightSide.spin_for(REVERSE,100,DEGREES,wait=False)
+def resetCalibration():
+    rightSide.set_position(0,DEGREES)
+    leftSide.set_position(0,DEGREES)
+    Inertial1.set_heading(0,DEGREES)
+
+def pre_autonomous():
+    # actions to do when the program starts
+    brain.screen.clear_screen()
+    brain.screen.print("pre auton code")
+    #calibrate sensors here
+    resetCalibration()
+    
+def autonomous():
+    brain.screen.clear_screen()
+    brain.screen.print("autonomous code")
+    # place automonous code here
+    
+def user_control():
+    brain.screen.clear_screen()
+    # place driver control in this while loop
+    while True:
+        #Tank Drive
+        # leftSide.set_velocity(controller_1.axis3.position(),PERCENT)
+        # rightSide.set_velocity(controller_1.axis2.position(),PERCENT)
+        # leftSide.spin(FORWARD)
+        # rightSide.spin(FORWARD)
+
+        #Aracde Drive
+        # leftSide.set_velocity(controller_1.axis3.position() + controller_1.axis4.position(),PERCENT)
+        # rightSide.set_velocity(controller_1.axis3.position() - controller_1.axis4.position(),PERCENT)
+        # leftSide.spin(FORWARD)
+        # rightSide.spin(FORWARD)
+        #this template is for catapult, change to fit your shooting design
+        if limitSwitch.pressing():
+            catapult.stop(HOLD)
+        if controller_1.buttonR1.pressing() and limitSwitch.pressing():
+            catapult.spin_for(REVERSE,300,DEGREES,wait=True)
+        else:
+            catapult.spin(REVERSE)
+        #Intake code
+        if limitSwitch.pressing() and controller_1.buttonL1.pressing(): #if catapult is down and the intake button is being pressed, intake
+            intake.spin(FORWARD)
+        elif controller_1.buttonL2.pressing():
+            intake.spin(REVERSE)
+        else:
+            intake.stop()
+            
+# create competition instance
+comp = Competition(user_control, autonomous)
+pre_autonomous()
